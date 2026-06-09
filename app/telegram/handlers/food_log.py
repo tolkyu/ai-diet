@@ -156,7 +156,7 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
 
         from app.services.subscription_service import SubscriptionService
         sub_svc = SubscriptionService(session)
-        sub_info = await sub_svc.get_usage_info(user.id)
+        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=message.from_user.id)  # type: ignore[union-attr]
         is_premium = sub_info["plan"] == "premium"
 
         try:

@@ -145,7 +145,7 @@ async def _get_dashboard_data(telegram_id: int):
 
         food_log = await flog_svc.get_today_log(user.id)
         goal     = await user_svc.get_active_goal(user.id)
-        sub_info = await sub_svc.get_usage_info(user.id)
+        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=telegram_id)
         is_premium = sub_info["plan"] == "premium"
 
         water_log = None

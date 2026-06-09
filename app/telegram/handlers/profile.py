@@ -41,7 +41,7 @@ async def cmd_profile(event: Message | CallbackQuery, state: FSMContext = None) 
             return
 
         goal     = await user_svc.get_active_goal(user.id)
-        sub_info = await sub_svc.get_usage_info(user.id)
+        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=event.from_user.id)  # type: ignore[union-attr]
 
         targets_text = ""
         try:
@@ -76,7 +76,7 @@ async def cmd_profile(event: Message | CallbackQuery, state: FSMContext = None) 
         f"Ім'я: {user.display_name}\n"
         f"Стать: {gender_text}\n"
         f"Вік: {user.age} р.\n"
-        f"Зростання: {float(user.height_cm):.0f} см\n"
+        f"Зріст: {float(user.height_cm):.0f} см\n"
         f"Вага: {float(user.weight_kg):.1f} кг\n"
         f"Активність: {activity_text}\n"
         f"\n🎯 Ціль: {goal_text}"

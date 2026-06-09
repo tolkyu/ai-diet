@@ -75,6 +75,12 @@ class Settings(BaseSettings):
         return v
 
     @property
+    def admin_telegram_ids_set(self) -> frozenset[int]:
+        if not self.admin_telegram_ids:
+            return frozenset()
+        return frozenset(int(x.strip()) for x in self.admin_telegram_ids.split(",") if x.strip())
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
 

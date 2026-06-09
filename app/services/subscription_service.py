@@ -13,7 +13,14 @@ class SubscriptionService:
     async def get_subscription(self, user_id: uuid.UUID) -> Subscription:
         return await self.sub_repo.get_or_create(user_id)
 
-    async def get_usage_info(self, user_id: uuid.UUID) -> dict:
+    async def get_usage_info(self, user_id: uuid.UUID, telegram_id: int | None = None) -> dict:
+        if telegram_id and telegram_id in settings.admin_telegram_ids_set:
+            return {
+                "plan": "premium",
+                "text_analyses_remaining": "unlimited",
+                "photo_analyses_remaining": "unlimited",
+            }
+
         sub = await self.get_subscription(user_id)
         sub = await self.sub_repo.reset_quota_if_needed(sub)
 

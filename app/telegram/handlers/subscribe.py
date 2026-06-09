@@ -43,7 +43,7 @@ async def cmd_subscribe(message: Message) -> None:
         if not user:
             await message.answer("Спочатку налаштуй профіль через /start.")
             return
-        sub_info = await sub_svc.get_usage_info(user.id)
+        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=message.from_user.id)  # type: ignore[union-attr]
 
     if sub_info["plan"] == "premium":
         await message.answer(SUBSCRIBE_ALREADY_PREMIUM)
