@@ -96,5 +96,14 @@ async def cmd_admin(message: Message) -> None:
             date = payment.created_at.strftime("%d.%m") if payment.created_at else "?"
             lines.append(f"• {name} · {payment.stars_amount} ⭐ · {plan} · {date}")
 
+    # Fetch real Stars balance from Telegram API
+    try:
+        transactions = await message.bot.get_star_transactions(limit=1)  # type: ignore[union-attr]
+        tg_balance = transactions.nanostar_amount // 1_000_000_000 if hasattr(transactions, "nanostar_amount") else None
+        if tg_balance is not None:
+            lines.insert(6, f"• Баланс на рахунку Telegram: <b>{tg_balance} ⭐</b>")
+    except Exception:
+        pass  # method may not be available in all aiogram versions
+
     await message.answer("\n".join(lines), parse_mode="HTML")
     logger.info("Admin panel viewed", admin_id=message.from_user.id)  # type: ignore[union-attr]

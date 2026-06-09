@@ -101,7 +101,7 @@ async def main() -> None:
         await dp.start_polling(
             bot,
             allowed_updates=["message", "callback_query", "pre_checkout_query"],
-            drop_pending_updates=True,
+            drop_pending_updates=False,
         )
     finally:
         await bot.session.close()

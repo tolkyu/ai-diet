@@ -102,21 +102,29 @@ async def handle_successful_payment(message: Message) -> None:
     months = 12 if payload == _PAYLOAD_YEARLY else 1
     plan_label = "yearly" if payload == _PAYLOAD_YEARLY else "monthly"
     stars = payment.total_amount
+    telegram_id = message.from_user.id  # type: ignore[union-attr]
 
-    async with AsyncSessionLocal() as session:
-        user_repo = UserRepository(session)
-        payment_svc = PaymentService(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
-        if not user:
-            return
-        await payment_svc.handle_successful_payment(
-            user_id=user.id,
-            transaction_id=payment.telegram_payment_charge_id,
-            stars_amount=stars,
-            plan=plan_label,
-            subscription_months=months,
-        )
-        await session.commit()
+    try:
+        async with AsyncSessionLocal() as session:
+            user_repo = UserRepository(session)
+            payment_svc = PaymentService(session)
+            user = await user_repo.get_by_telegram_id(telegram_id)
+            if not user:
+                logger.error("Payment received but user not found", telegram_id=telegram_id, charge_id=payment.telegram_payment_charge_id)
+                await message.answer("✅ Оплату отримано! Виникла технічна помилка з активацією — напиши /start і спробуй ще раз або звернись до підтримки.")
+                return
+            await payment_svc.handle_successful_payment(
+                user_id=user.id,
+                transaction_id=payment.telegram_payment_charge_id,
+                stars_amount=stars,
+                plan=plan_label,
+                subscription_months=months,
+            )
+            await session.commit()
+    except Exception as e:
+        logger.error("Failed to activate subscription after payment", telegram_id=telegram_id, charge_id=payment.telegram_payment_charge_id, error=str(e))
+        await message.answer("✅ Оплату отримано! Виникла технічна помилка з активацією — напиши /start і спробуй ще раз або звернись до підтримки.")
+        return
 
-    logger.info("Payment processed", telegram_id=message.from_user.id, stars=stars, plan=plan_label)  # type: ignore[union-attr]
+    logger.info("Payment processed", telegram_id=telegram_id, stars=stars, plan=plan_label)
     await message.answer(SUBSCRIBE_SUCCESS, parse_mode="HTML")
