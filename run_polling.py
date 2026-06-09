@@ -25,7 +25,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
-from app.telegram.handlers import start, goal, dashboard, food_log, weight, stats, profile, help, upgrade, subscribe, water
+from app.telegram.handlers import start, goal, dashboard, food_log, weight, stats, profile, help, upgrade, subscribe, water, admin
 from app.telegram.middlewares.auth import AuthMiddleware
 from app.telegram.middlewares.logging import LoggingMiddleware
 
@@ -73,6 +73,7 @@ async def main() -> None:
     dp.include_router(upgrade.router)
     dp.include_router(subscribe.router)
     dp.include_router(water.router)
+    dp.include_router(admin.router)
 
     me = await bot.get_me()
     logger.info(f"Bot started: @{me.username}")
