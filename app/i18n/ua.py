@@ -345,3 +345,14 @@ DASHBOARD_GOAL_PROGRESS = (
 )
 DASHBOARD_WATER = "\n\n💧 <b>Вода:</b> {current}мл / {goal}мл  {bar}"
 DASHBOARD_UPGRADE_TIP = "\n\n⭐ <i>Перейди на Преміум для відстеження води та детального аналізу страв → /subscribe</i>"
+
+# ── Premium-only feature teasers ──────────────────────────────────────────────
+WEIGHT_FAT_PREMIUM_TIP = "\n\n⭐ <i>Відстеження % жиру в тілі доступне у Преміум → /subscribe</i>"
+
+FOOD_VOICE_PREMIUM_ONLY = (
+    "🎙 <b>Голосовий запис — Преміум</b>\n\n"
+    "Запис їжі голосом доступний у Преміум плані.\n\n"
+    "⭐ Перейди на Преміум → /subscribe"
+)
+
+STATS_AI_PREMIUM_TEASER = "\n\n⭐ <i>AI-аналіз тижня доступний у Преміум плані → /subscribe</i>"

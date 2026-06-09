@@ -9,7 +9,8 @@ from app.i18n.ua import (
     STATS_CALORIES_AVG, STATS_PROTEIN_AVG, STATS_FAT_AVG, STATS_CARBS_AVG,
     STATS_ADHERENCE, STATS_ISSUES, STATS_AI_SUMMARY, STATS_NO_PROFILE,
     STATS_CAL_ADHERENCE, STATS_PROT_ADHERENCE, STATS_FAT_ADHERENCE,
-    STATS_CARBS_ADHERENCE, STATS_WATER_SECTION, STATS_WATER_AVG, BTN_STATS,
+    STATS_CARBS_ADHERENCE, STATS_WATER_SECTION, STATS_WATER_AVG,
+    STATS_AI_PREMIUM_TEASER, BTN_STATS,
 )
 
 router = Router(name="stats")
@@ -22,7 +23,7 @@ def _progress_bar(pct: float) -> str:
     return BAR_FILLED * filled + BAR_EMPTY * (PROGRESS_BAR_LENGTH - filled)
 
 
-def _build_stats_text(stats: dict, ai_summary: str | None = None) -> str:
+def _build_stats_text(stats: dict, ai_summary: str | None = None, is_premium: bool = False) -> str:
     avgs      = stats["averages"]
     targets   = stats.get("targets")
     adherence = stats.get("adherence")
@@ -65,6 +66,8 @@ def _build_stats_text(stats: dict, ai_summary: str | None = None) -> str:
 
     if ai_summary:
         lines += [STATS_AI_SUMMARY, f"<i>{ai_summary}</i>"]
+    elif not is_premium:
+        lines.append(STATS_AI_PREMIUM_TEASER)
 
     return "\n".join(lines)
 
@@ -103,12 +106,17 @@ async def cmd_stats(event: Message | CallbackQuery, state: FSMContext = None) ->
                 await event.answer(STATS_NO_PROFILE)
             return
 
+        from app.services.subscription_service import SubscriptionService
+        sub_svc = SubscriptionService(session)
+        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=telegram_id)
+        is_premium = sub_info["plan"] == "premium"
+
         stats = await analytics_svc.get_weekly_stats(user.id)
         goal  = await user_svc.get_active_goal(user.id)
         await session.commit()
 
     ai_summary = None
-    if stats["days_logged"] >= 3 and goal:
+    if is_premium and stats["days_logged"] >= 3 and goal:
         try:
             issues_str = "; ".join(stats.get("issues", [])) or "None identified"
             tgt = stats.get("targets", {}) or {}
@@ -128,7 +136,7 @@ async def cmd_stats(event: Message | CallbackQuery, state: FSMContext = None) ->
         except Exception as e:
             logger.warning("AI summary failed", error=str(e))
 
-    text = _build_stats_text(stats, ai_summary)
+    text = _build_stats_text(stats, ai_summary, is_premium=is_premium)
     if isinstance(event, CallbackQuery):
         await event.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu_keyboard())  # type: ignore[union-attr]
         await event.answer()

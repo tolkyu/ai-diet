@@ -7,7 +7,8 @@ from app.telegram.keyboards.inline import main_menu_keyboard, skip_keyboard
 from app.core.logging import get_logger
 from app.i18n.ua import (
     WEIGHT_PROMPT, WEIGHT_GOT_WEIGHT, WEIGHT_INVALID, WEIGHT_INVALID_FAT,
-    WEIGHT_SAVED, WEIGHT_FAT_LINE, WEIGHT_TREND_LINE, BTN_WEIGHT, MAIN_MENU_BUTTONS,
+    WEIGHT_SAVED, WEIGHT_FAT_LINE, WEIGHT_TREND_LINE, WEIGHT_FAT_PREMIUM_TIP,
+    BTN_WEIGHT, MAIN_MENU_BUTTONS,
 )
 
 router = Router(name="weight")
@@ -37,6 +38,26 @@ async def handle_weight_input(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(weight_kg=weight)
+
+    from app.database.session import AsyncSessionLocal
+    from app.repositories.user import UserRepository
+    from app.services.subscription_service import SubscriptionService
+
+    async with AsyncSessionLocal() as session:
+        user_repo = UserRepository(session)
+        sub_svc = SubscriptionService(session)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        if user:
+            sub_info = await sub_svc.get_usage_info(user.id, telegram_id=message.from_user.id)  # type: ignore[union-attr]
+            is_premium = sub_info["plan"] == "premium"
+        else:
+            is_premium = False
+
+    if not is_premium:
+        await state.update_data(weight_kg=weight)
+        await _save_weight(message, state, body_fat=None, premium_tip=True)
+        return
+
     await message.answer(
         WEIGHT_GOT_WEIGHT.format(weight=weight),
         reply_markup=skip_keyboard("weight:skip_fat"),
@@ -62,7 +83,7 @@ async def handle_body_fat(message: Message, state: FSMContext) -> None:
 
 
 async def _save_weight(
-    event: Message | CallbackQuery, state: FSMContext, body_fat: float | None
+    event: Message | CallbackQuery, state: FSMContext, body_fat: float | None, premium_tip: bool = False
 ) -> None:
     from app.database.session import AsyncSessionLocal
     from app.repositories.user import UserRepository
@@ -90,8 +111,9 @@ async def _save_weight(
         trend_line = WEIGHT_TREND_LINE.format(arrow=arrow, change=change)
 
     fat_line = WEIGHT_FAT_LINE.format(fat=body_fat) if body_fat else ""
+    tip_line = WEIGHT_FAT_PREMIUM_TIP if premium_tip else ""
 
-    text = WEIGHT_SAVED.format(weight=weight, fat_line=fat_line, trend_line=trend_line)
+    text = WEIGHT_SAVED.format(weight=weight, fat_line=fat_line, trend_line=trend_line) + tip_line
 
     if isinstance(event, CallbackQuery):
         await event.message.edit_text(text, parse_mode="HTML", reply_markup=main_menu_keyboard())  # type: ignore[union-attr]

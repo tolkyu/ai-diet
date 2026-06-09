@@ -15,7 +15,7 @@ from app.i18n.ua import (
     FOOD_SESSION_EXPIRED, FOOD_RESULT_HEADER, FOOD_QUOTA_EXCEEDED_TEXT,
     FOOD_QUOTA_EXCEEDED_PHOTO, FOOD_START_FIRST, FOOD_CONFIDENCE, BTN_LOG_FOOD,
     FOOD_PHOTO_VERIFY, FOOD_PHOTO_CORRECTION_PROMPT, FOOD_PHOTO_REANALYZING,
-    PAYWALL_LIMIT_REACHED, PAYWALL_BTN_SUBSCRIBE,
+    PAYWALL_LIMIT_REACHED, PAYWALL_BTN_SUBSCRIBE, FOOD_VOICE_PREMIUM_ONLY,
     PREMIUM_ANALYSIS_HEADER, PREMIUM_QUALITY_SCORE, PREMIUM_STRENGTHS,
     PREMIUM_WEAKNESSES, PREMIUM_RECOMMENDATION,
     MAIN_MENU_BUTTONS,
@@ -253,6 +253,28 @@ async def handle_photo_correction(message: Message, state: FSMContext) -> None:
 
 @router.message(FoodLogStates.waiting_for_food_input, F.voice)
 async def handle_voice_food(message: Message, state: FSMContext) -> None:
+    from app.database.session import AsyncSessionLocal
+    from app.repositories.user import UserRepository
+    from app.services.subscription_service import SubscriptionService
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    async with AsyncSessionLocal() as session:
+        user_repo = UserRepository(session)
+        sub_svc = SubscriptionService(session)
+        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+        if user:
+            sub_info = await sub_svc.get_usage_info(user.id, telegram_id=message.from_user.id)  # type: ignore[union-attr]
+            is_premium = sub_info["plan"] == "premium"
+        else:
+            is_premium = False
+
+    if not is_premium:
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text=PAYWALL_BTN_SUBSCRIBE, callback_data="go:subscribe"))
+        await message.answer(FOOD_VOICE_PREMIUM_ONLY, parse_mode="HTML", reply_markup=builder.as_markup())
+        return
+
     from app.ai.voice_processor import voice_processor
 
     processing_msg = await message.answer(FOOD_ANALYZING_VOICE)
