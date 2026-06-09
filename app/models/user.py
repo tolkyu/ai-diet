@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from app.models.subscription import Subscription
     from app.models.notification import Notification
     from app.models.audit_log import AuditLog
+    from app.models.payment import Payment
+    from app.models.water_log import WaterLog
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -55,6 +57,12 @@ class User(Base, UUIDMixin, TimestampMixin):
     )
     audit_logs: Mapped[list["AuditLog"]] = relationship(
         "AuditLog", back_populates="user", cascade="all, delete-orphan"
+    )
+    payments: Mapped[list["Payment"]] = relationship(
+        "Payment", back_populates="user", cascade="all, delete-orphan"
+    )
+    water_logs: Mapped[list["WaterLog"]] = relationship(
+        "WaterLog", back_populates="user", cascade="all, delete-orphan"
     )
 
     @property

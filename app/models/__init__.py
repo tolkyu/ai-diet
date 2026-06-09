@@ -9,6 +9,8 @@ from app.models.subscription import Subscription
 from app.models.ai_analysis import AIAnalysis
 from app.models.notification import Notification
 from app.models.audit_log import AuditLog
+from app.models.payment import Payment
+from app.models.water_log import WaterLog
 
 __all__ = [
     "User",
@@ -22,4 +24,6 @@ __all__ = [
     "AIAnalysis",
     "Notification",
     "AuditLog",
+    "Payment",
+    "WaterLog",
 ]

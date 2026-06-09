@@ -15,7 +15,13 @@ from app.i18n.ua import (
     FOOD_SESSION_EXPIRED, FOOD_RESULT_HEADER, FOOD_QUOTA_EXCEEDED_TEXT,
     FOOD_QUOTA_EXCEEDED_PHOTO, FOOD_START_FIRST, FOOD_CONFIDENCE, BTN_LOG_FOOD,
     FOOD_PHOTO_VERIFY, FOOD_PHOTO_CORRECTION_PROMPT, FOOD_PHOTO_REANALYZING,
+    PAYWALL_LIMIT_REACHED, PAYWALL_BTN_SUBSCRIBE,
+    PREMIUM_ANALYSIS_HEADER, PREMIUM_QUALITY_SCORE, PREMIUM_STRENGTHS,
+    PREMIUM_WEAKNESSES, PREMIUM_RECOMMENDATION,
+    MAIN_MENU_BUTTONS,
 )
+
+_MENU_BUTTONS = MAIN_MENU_BUTTONS
 
 router = Router(name="food_log")
 logger = get_logger(__name__)
@@ -24,8 +30,9 @@ _PENDING_RESULT_KEY = "pending_food_result"
 _PENDING_TEXT_KEY   = "pending_food_text"
 
 
-def _format_food_summary(result) -> str:
-    lines = [FOOD_RESULT_HEADER, ""]
+def _format_food_summary(result, is_premium: bool = False) -> str:
+    header = PREMIUM_ANALYSIS_HEADER if is_premium else FOOD_RESULT_HEADER
+    lines = [header, ""]
     for item in result.items:
         amount = f"{item.amount_g:.0f}г " if item.amount_g else ""
         lines.append(
@@ -41,6 +48,23 @@ def _format_food_summary(result) -> str:
         "",
         FOOD_CONFIDENCE.format(pct=result.overall_confidence * 100),
     ]
+
+    if is_premium:
+        score = getattr(result, "quality_score", None)
+        if score:
+            lines.append(PREMIUM_QUALITY_SCORE.format(score=score))
+        strengths = getattr(result, "strengths", []) or []
+        if strengths:
+            lines.append(PREMIUM_STRENGTHS)
+            lines.extend(f"  • {s}" for s in strengths)
+        weaknesses = getattr(result, "weaknesses", []) or []
+        if weaknesses:
+            lines.append(PREMIUM_WEAKNESSES)
+            lines.extend(f"  • {w}" for w in weaknesses)
+        recommendation = getattr(result, "recommendation", None)
+        if recommendation:
+            lines.append(PREMIUM_RECOMMENDATION.format(text=recommendation))
+
     return "\n".join(lines)
 
 
@@ -51,7 +75,7 @@ async def cmd_logfood(message: Message, state: FSMContext) -> None:
     await message.answer(FOOD_LOG_PROMPT, parse_mode="HTML")
 
 
-@router.message(FoodLogStates.waiting_for_food_input, F.text)
+@router.message(FoodLogStates.waiting_for_food_input, F.text, ~F.text.in_(_MENU_BUTTONS))
 async def handle_text_food(message: Message, state: FSMContext) -> None:
     from app.database.session import AsyncSessionLocal
     from app.repositories.user import UserRepository
@@ -130,16 +154,29 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
             await processing_msg.edit_text(FOOD_START_FIRST)
             return
 
+        from app.services.subscription_service import SubscriptionService
+        sub_svc = SubscriptionService(session)
+        sub_info = await sub_svc.get_usage_info(user.id)
+        is_premium = sub_info["plan"] == "premium"
+
         try:
             await food_log_svc.check_and_increment_quota(user.id, FoodInputType.PHOTO)
-        except QuotaExceededError as e:
-            await processing_msg.edit_text(FOOD_QUOTA_EXCEEDED_PHOTO)
+        except QuotaExceededError:
+            from aiogram.types import InlineKeyboardButton
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            builder.add(InlineKeyboardButton(text=PAYWALL_BTN_SUBSCRIBE, callback_data="go:subscribe"))
+            await processing_msg.edit_text(
+                PAYWALL_LIMIT_REACHED,
+                parse_mode="HTML",
+                reply_markup=builder.as_markup(),
+            )
             await state.clear()
             return
 
         try:
             result = await food_photo_analyzer.analyze_photo(
-                photo_bytes, user_id=user.id, session=session
+                photo_bytes, user_id=user.id, session=session, is_premium=is_premium
             )
             await session.commit()
         except Exception as e:
@@ -147,9 +184,9 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
             await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_PHOTO)
             return
 
-    await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: "photo"})
+    await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: "photo", "is_premium": is_premium})
     await processing_msg.edit_text(
-        _format_food_summary(result) + FOOD_PHOTO_VERIFY,
+        _format_food_summary(result, is_premium) + FOOD_PHOTO_VERIFY,
         parse_mode="HTML",
         reply_markup=photo_verify_keyboard(),
     )
@@ -160,12 +197,13 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
 async def photo_verify_ok(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     result = data.get(_PENDING_RESULT_KEY)
+    is_premium = data.get("is_premium", False)
     if not result:
         await callback.answer()
         await state.clear()
         return
     await callback.message.edit_text(  # type: ignore[union-attr]
-        _format_food_summary(result) + FOOD_SHOULD_SAVE,
+        _format_food_summary(result, is_premium) + FOOD_SHOULD_SAVE,
         parse_mode="HTML",
         reply_markup=confirm_food_keyboard(),
     )
@@ -180,12 +218,13 @@ async def photo_verify_wrong(callback: CallbackQuery, state: FSMContext) -> None
     await callback.answer()
 
 
-@router.message(FoodLogStates.waiting_for_photo_correction, F.text)
+@router.message(FoodLogStates.waiting_for_photo_correction, F.text, ~F.text.in_(_MENU_BUTTONS))
 async def handle_photo_correction(message: Message, state: FSMContext) -> None:
     from app.ai.food_photo_analyzer import food_photo_analyzer
 
     data = await state.get_data()
     initial_result = data.get(_PENDING_RESULT_KEY)
+    is_premium = data.get("is_premium", False)
     if not initial_result:
         await state.clear()
         return
@@ -197,6 +236,7 @@ async def handle_photo_correction(message: Message, state: FSMContext) -> None:
             photo_bytes=b"",
             followup_answer=message.text,  # type: ignore[arg-type]
             initial_result=initial_result,
+            is_premium=is_premium,
         )
     except Exception as e:
         logger.error("Photo correction re-analysis failed", error=str(e))
@@ -204,7 +244,7 @@ async def handle_photo_correction(message: Message, state: FSMContext) -> None:
 
     await state.update_data(**{_PENDING_RESULT_KEY: refined_result})
     await processing_msg.edit_text(
-        _format_food_summary(refined_result) + FOOD_PHOTO_VERIFY,
+        _format_food_summary(refined_result, is_premium) + FOOD_PHOTO_VERIFY,
         parse_mode="HTML",
         reply_markup=photo_verify_keyboard(),
     )
@@ -249,7 +289,7 @@ async def handle_voice_food(message: Message, state: FSMContext) -> None:
     await state.set_state(FoodLogStates.waiting_for_confirmation)
 
 
-@router.message(FoodLogStates.waiting_for_clarification, F.text)
+@router.message(FoodLogStates.waiting_for_clarification, F.text, ~F.text.in_(_MENU_BUTTONS))
 async def handle_clarification(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     initial_result = data.get(_PENDING_RESULT_KEY)

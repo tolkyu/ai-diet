@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from app.telegram.keyboards.inline import main_menu_keyboard
 from app.core.logging import get_logger
@@ -15,11 +16,14 @@ logger = get_logger(__name__)
 @router.message(Command("profile"))
 @router.message(F.text == BTN_PROFILE)
 @router.callback_query(F.data == "menu:profile")
-async def cmd_profile(event: Message | CallbackQuery) -> None:
+async def cmd_profile(event: Message | CallbackQuery, state: FSMContext = None) -> None:  # type: ignore[assignment]
     from app.database.session import AsyncSessionLocal
     from app.repositories.user import UserRepository
     from app.services.user_service import UserService
     from app.services.subscription_service import SubscriptionService
+
+    if state:
+        await state.clear()
 
     telegram_id = event.from_user.id  # type: ignore[union-attr]
 

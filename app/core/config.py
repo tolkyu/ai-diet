@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Admin
     admin_telegram_ids: str = ""  # comma-separated telegram user IDs, e.g. "123456789,987654321"
 
+    # Telegram Stars pricing (1 Star ≈ $0.013 USD)
+    stars_monthly_price: int = 190   # ~99 UAH / ~$2.47
+    stars_yearly_price: int = 1750   # ~899 UAH / ~$22.75
+
     # OpenAI
     openai_api_key: str
     openai_text_model: str = "gpt-4o-mini"

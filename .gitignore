@@ -21,6 +21,9 @@ ENV/
 .env.local
 .env.production
 
+# Claude Code local settings (may contain tokens)
+.claude/
+
 # IDEs
 .vscode/
 .idea/

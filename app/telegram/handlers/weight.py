@@ -7,7 +7,7 @@ from app.telegram.keyboards.inline import main_menu_keyboard, skip_keyboard
 from app.core.logging import get_logger
 from app.i18n.ua import (
     WEIGHT_PROMPT, WEIGHT_GOT_WEIGHT, WEIGHT_INVALID, WEIGHT_INVALID_FAT,
-    WEIGHT_SAVED, WEIGHT_FAT_LINE, WEIGHT_TREND_LINE, BTN_WEIGHT,
+    WEIGHT_SAVED, WEIGHT_FAT_LINE, WEIGHT_TREND_LINE, BTN_WEIGHT, MAIN_MENU_BUTTONS,
 )
 
 router = Router(name="weight")
@@ -26,7 +26,7 @@ async def cmd_weight(event: Message | CallbackQuery, state: FSMContext) -> None:
         await event.answer(WEIGHT_PROMPT, parse_mode="HTML")
 
 
-@router.message(WeightStates.waiting_for_weight, F.text)
+@router.message(WeightStates.waiting_for_weight, F.text, ~F.text.in_(MAIN_MENU_BUTTONS))
 async def handle_weight_input(message: Message, state: FSMContext) -> None:
     try:
         weight = float(message.text.strip().replace(",", "."))  # type: ignore[union-attr]
@@ -49,7 +49,7 @@ async def skip_body_fat(callback: CallbackQuery, state: FSMContext) -> None:
     await _save_weight(callback, state, body_fat=None)
 
 
-@router.message(WeightStates.waiting_for_body_fat, F.text)
+@router.message(WeightStates.waiting_for_body_fat, F.text, ~F.text.in_(MAIN_MENU_BUTTONS))
 async def handle_body_fat(message: Message, state: FSMContext) -> None:
     try:
         body_fat = float(message.text.strip().replace(",", "."))  # type: ignore[union-attr]

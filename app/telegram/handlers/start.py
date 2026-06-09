@@ -16,7 +16,7 @@ from app.i18n.ua import (
     START_INVALID_AGE, START_GOT_AGE,
     START_INVALID_HEIGHT, START_GOT_HEIGHT,
     START_INVALID_WEIGHT, START_GOT_WEIGHT,
-    START_CHOOSE_ACTIVITY, START_PROFILE_SAVED,
+    START_CHOOSE_ACTIVITY, START_PROFILE_SAVED, MAIN_MENU_BUTTONS,
 )
 
 router = Router(name="start")
@@ -61,7 +61,7 @@ async def handle_gender(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@router.message(RegistrationStates.waiting_for_age)
+@router.message(RegistrationStates.waiting_for_age, ~F.text.in_(MAIN_MENU_BUTTONS))
 async def handle_age(message: Message, state: FSMContext) -> None:
     try:
         age = int(message.text.strip())  # type: ignore[union-attr]
@@ -76,7 +76,7 @@ async def handle_age(message: Message, state: FSMContext) -> None:
     await state.set_state(RegistrationStates.waiting_for_height)
 
 
-@router.message(RegistrationStates.waiting_for_height)
+@router.message(RegistrationStates.waiting_for_height, ~F.text.in_(MAIN_MENU_BUTTONS))
 async def handle_height(message: Message, state: FSMContext) -> None:
     try:
         height = float(message.text.strip().replace(",", "."))  # type: ignore[union-attr]
@@ -91,7 +91,7 @@ async def handle_height(message: Message, state: FSMContext) -> None:
     await state.set_state(RegistrationStates.waiting_for_weight)
 
 
-@router.message(RegistrationStates.waiting_for_weight)
+@router.message(RegistrationStates.waiting_for_weight, ~F.text.in_(MAIN_MENU_BUTTONS))
 async def handle_weight(message: Message, state: FSMContext) -> None:
     try:
         weight = float(message.text.strip().replace(",", "."))  # type: ignore[union-attr]

@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from app.core.constants import BAR_EMPTY, BAR_FILLED, PROGRESS_BAR_LENGTH
 from app.core.logging import get_logger
@@ -8,7 +9,7 @@ from app.i18n.ua import (
     STATS_CALORIES_AVG, STATS_PROTEIN_AVG, STATS_FAT_AVG, STATS_CARBS_AVG,
     STATS_ADHERENCE, STATS_ISSUES, STATS_AI_SUMMARY, STATS_NO_PROFILE,
     STATS_CAL_ADHERENCE, STATS_PROT_ADHERENCE, STATS_FAT_ADHERENCE,
-    STATS_CARBS_ADHERENCE, BTN_STATS,
+    STATS_CARBS_ADHERENCE, STATS_WATER_SECTION, STATS_WATER_AVG, BTN_STATS,
 )
 
 router = Router(name="stats")
@@ -55,6 +56,13 @@ def _build_stats_text(stats: dict, ai_summary: str | None = None) -> str:
         for issue in issues:
             lines.append(f"• {issue}")
 
+    water = stats.get("water")
+    if water and water["avg_ml"] > 0:
+        lines += [
+            STATS_WATER_SECTION,
+            STATS_WATER_AVG.format(val=water["avg_ml"], days=water["days_logged"]),
+        ]
+
     if ai_summary:
         lines += [STATS_AI_SUMMARY, f"<i>{ai_summary}</i>"]
 
@@ -64,13 +72,16 @@ def _build_stats_text(stats: dict, ai_summary: str | None = None) -> str:
 @router.message(Command("stats"))
 @router.message(F.text == BTN_STATS)
 @router.callback_query(F.data == "menu:stats")
-async def cmd_stats(event: Message | CallbackQuery) -> None:
+async def cmd_stats(event: Message | CallbackQuery, state: FSMContext = None) -> None:  # type: ignore[assignment]
     from app.database.session import AsyncSessionLocal
     from app.repositories.user import UserRepository
     from app.services.analytics_service import AnalyticsService
     from app.services.user_service import UserService
     from app.ai.coach import ai_coach
     from app.telegram.keyboards.inline import main_menu_keyboard
+
+    if state:
+        await state.clear()
 
     telegram_id = event.from_user.id  # type: ignore[union-attr]
 

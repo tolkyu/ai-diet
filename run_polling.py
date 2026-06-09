@@ -25,7 +25,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
-from app.telegram.handlers import start, goal, dashboard, food_log, weight, stats, profile, help, upgrade
+from app.telegram.handlers import start, goal, dashboard, food_log, weight, stats, profile, help, upgrade, subscribe, water
 from app.telegram.middlewares.auth import AuthMiddleware
 from app.telegram.middlewares.logging import LoggingMiddleware
 
@@ -71,6 +71,8 @@ async def main() -> None:
     dp.include_router(profile.router)
     dp.include_router(help.router)
     dp.include_router(upgrade.router)
+    dp.include_router(subscribe.router)
+    dp.include_router(water.router)
 
     me = await bot.get_me()
     logger.info(f"Bot started: @{me.username}")
@@ -86,7 +88,8 @@ async def main() -> None:
         BotCommand(command="stats",     description="Тижнева статистика"),
         BotCommand(command="profile",   description="Мій профіль"),
         BotCommand(command="help",      description="Допомога"),
-        BotCommand(command="upgrade",   description="Активувати Преміум"),
+        BotCommand(command="subscribe", description="Преміум підписка"),
+        BotCommand(command="water",     description="Відстеження води (Преміум)"),
     ], scope=BotCommandScopeDefault())
 
     print(f"\nBot @{me.username} is running in polling mode!")
@@ -96,7 +99,7 @@ async def main() -> None:
     try:
         await dp.start_polling(
             bot,
-            allowed_updates=["message", "callback_query"],
+            allowed_updates=["message", "callback_query", "pre_checkout_query"],
             drop_pending_updates=True,
         )
     finally:

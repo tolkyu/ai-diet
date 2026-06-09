@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.food_log import FoodLog
 from app.models.daily_targets import DailyTargets
+from app.models.water_log import WaterLog
 from app.repositories.weight_history import WeightHistoryRepository
 
 
@@ -81,14 +82,26 @@ class AnalyticsService:
             # Identify problem areas
             issues = []
             if avg_protein < target_protein * 0.85:
-                issues.append(f"Low protein: averaging {avg_protein:.0f}g vs {target_protein:.0f}g target")
+                issues.append(f"Мало білка: в середньому {avg_protein:.0f}г з {target_protein:.0f}г норми")
             if avg_fat > target_fat * 1.15:
-                issues.append(f"Excess fat: averaging {avg_fat:.0f}g vs {target_fat:.0f}g target")
+                issues.append(f"Забагато жирів: в середньому {avg_fat:.0f}г з {target_fat:.0f}г норми")
             if avg_calories > target_calories * 1.1:
-                issues.append(f"Over calories by {avg_calories - target_calories:.0f} kcal/day")
+                issues.append(f"Перевищення калорій на {avg_calories - target_calories:.0f} ккал/день")
             elif avg_calories < target_calories * 0.8:
-                issues.append(f"Under calories by {target_calories - avg_calories:.0f} kcal/day")
+                issues.append(f"Нестача калорій: {target_calories - avg_calories:.0f} ккал/день")
             stats["issues"] = issues
+
+        # Water stats for the week
+        water_stmt = select(
+            func.avg(WaterLog.total_ml).label("avg_water"),
+            func.count(WaterLog.id).label("water_days"),
+        ).where(WaterLog.user_id == user_id, WaterLog.date >= week_ago, WaterLog.date <= today)
+        water_result = await self.session.execute(water_stmt)
+        water_row = water_result.first()
+        stats["water"] = {
+            "avg_ml": round(float(water_row.avg_water or 0)),
+            "days_logged": water_row.water_days or 0,
+        }
 
         return stats
 
