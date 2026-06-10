@@ -7,6 +7,7 @@ from app.telegram.keyboards.inline import confirm_food_keyboard, main_menu_keybo
 from app.core.constants import FoodInputType, LOW_CONFIDENCE_THRESHOLD
 from app.core.exceptions import QuotaExceededError
 from app.core.logging import get_logger
+from app.ai.nutrition_analyzer import FoodAnalysisResult, FoodItem
 from app.i18n.ua import (
     FOOD_LOG_PROMPT, FOOD_ANALYZING_TEXT, FOOD_ANALYZING_PHOTO, FOOD_ANALYZING_VOICE,
     FOOD_TOO_SHORT, FOOD_ANALYSIS_ERROR_TEXT, FOOD_ANALYSIS_ERROR_PHOTO,
@@ -28,6 +29,39 @@ logger = get_logger(__name__)
 
 _PENDING_RESULT_KEY = "pending_food_result"
 _PENDING_TEXT_KEY   = "pending_food_text"
+
+
+def _result_from_state(data) -> FoodAnalysisResult:
+    """Reconstruct FoodAnalysisResult from a Redis-deserialized dict or return as-is."""
+    if isinstance(data, FoodAnalysisResult):
+        return data
+    items = [
+        FoodItem(
+            name=i["name"],
+            amount_g=i.get("amount_g"),
+            calories=float(i["calories"]),
+            protein_g=float(i["protein_g"]),
+            fat_g=float(i["fat_g"]),
+            carbs_g=float(i["carbs_g"]),
+            confidence_score=float(i.get("confidence_score", 0.8)),
+            notes=i.get("notes"),
+        )
+        for i in data.get("items", [])
+    ]
+    result = FoodAnalysisResult(
+        items=items,
+        total_calories=float(data.get("total_calories", 0)),
+        total_protein_g=float(data.get("total_protein_g", 0)),
+        total_fat_g=float(data.get("total_fat_g", 0)),
+        total_carbs_g=float(data.get("total_carbs_g", 0)),
+        overall_confidence=float(data.get("overall_confidence", 0.8)),
+        clarification_needed=bool(data.get("clarification_needed", False)),
+        clarification_question=data.get("clarification_question"),
+    )
+    for attr in ("meal_type_guess", "food_quality_note", "quality_score", "strengths", "weaknesses", "recommendation"):
+        if attr in data:
+            setattr(result, attr, data[attr])
+    return result
 
 
 def _format_food_summary(result, is_premium: bool = False) -> str:
@@ -196,7 +230,7 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
 @router.callback_query(FoodLogStates.waiting_for_photo_verification, F.data == "photo_verify:ok")
 async def photo_verify_ok(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
-    result = data.get(_PENDING_RESULT_KEY)
+    result = _result_from_state(data.get(_PENDING_RESULT_KEY)) if data.get(_PENDING_RESULT_KEY) else None
     is_premium = data.get("is_premium", False)
     if not result:
         await callback.answer()
@@ -223,7 +257,7 @@ async def handle_photo_correction(message: Message, state: FSMContext) -> None:
     from app.ai.food_photo_analyzer import food_photo_analyzer
 
     data = await state.get_data()
-    initial_result = data.get(_PENDING_RESULT_KEY)
+    initial_result = _result_from_state(data.get(_PENDING_RESULT_KEY)) if data.get(_PENDING_RESULT_KEY) else None
     is_premium = data.get("is_premium", False)
     if not initial_result:
         await state.clear()
@@ -314,7 +348,7 @@ async def handle_voice_food(message: Message, state: FSMContext) -> None:
 @router.message(FoodLogStates.waiting_for_clarification, F.text, ~F.text.in_(_MENU_BUTTONS))
 async def handle_clarification(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    initial_result = data.get(_PENDING_RESULT_KEY)
+    initial_result = _result_from_state(data.get(_PENDING_RESULT_KEY)) if data.get(_PENDING_RESULT_KEY) else None
     if not initial_result:
         await state.clear()
         return
@@ -355,7 +389,7 @@ async def handle_food_confirmation(callback: CallbackQuery, state: FSMContext) -
         return
 
     data = await state.get_data()
-    result = data.get(_PENDING_RESULT_KEY)
+    result = _result_from_state(data.get(_PENDING_RESULT_KEY)) if data.get(_PENDING_RESULT_KEY) else None
     raw_input = data.get(_PENDING_TEXT_KEY, "")
     if not result:
         await callback.answer(FOOD_SESSION_EXPIRED)

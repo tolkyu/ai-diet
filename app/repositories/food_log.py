@@ -57,9 +57,9 @@ class FoodLogRepository(BaseRepository[FoodLog]):
         entries_result = await self.session.execute(entries_stmt)
         entries = list(entries_result.scalars().all())
 
-        log.total_calories = sum(e.calories for e in entries)
-        log.total_protein_g = sum(e.protein_g for e in entries)
-        log.total_fat_g = sum(e.fat_g for e in entries)
-        log.total_carbs_g = sum(e.carbs_g for e in entries)
+        log.total_calories = sum(float(e.calories) for e in entries)
+        log.total_protein_g = sum(float(e.protein_g) for e in entries)
+        log.total_fat_g = sum(float(e.fat_g) for e in entries)
+        log.total_carbs_g = sum(float(e.carbs_g) for e in entries)
         self.session.add(log)
         await self.session.flush()
