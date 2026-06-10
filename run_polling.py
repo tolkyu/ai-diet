@@ -7,6 +7,12 @@ import asyncio
 import os
 import sys
 
+# Fix Windows cp1252 encoding — Cyrillic chars would crash the logger otherwise
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Patch DATABASE_URL to SQLite before any app imports
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./dev.db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
@@ -108,4 +114,12 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import time
+    while True:
+        try:
+            asyncio.run(main())
+        except (KeyboardInterrupt, SystemExit):
+            break
+        except Exception as e:
+            print(f"[watchdog] Bot crashed: {e}. Restarting in 5s...", flush=True)
+            time.sleep(5)
