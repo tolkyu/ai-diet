@@ -148,22 +148,25 @@ async def handle_text_food(message: Message, state: FSMContext) -> None:
         await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_TEXT)
         return
 
-    if result.clarification_needed:
+    try:
         await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: text})
+        if result.clarification_needed:
+            await processing_msg.edit_text(
+                _format_food_summary(result) + FOOD_CLARIFICATION.format(question=result.clarification_question),
+                parse_mode="HTML",
+            )
+            await state.set_state(FoodLogStates.waiting_for_clarification)
+            return
         await processing_msg.edit_text(
-            _format_food_summary(result) + FOOD_CLARIFICATION.format(question=result.clarification_question),
+            _format_food_summary(result) + FOOD_SHOULD_SAVE,
             parse_mode="HTML",
+            reply_markup=confirm_food_keyboard(),
         )
-        await state.set_state(FoodLogStates.waiting_for_clarification)
-        return
-
-    await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: text})
-    await processing_msg.edit_text(
-        _format_food_summary(result) + FOOD_SHOULD_SAVE,
-        parse_mode="HTML",
-        reply_markup=confirm_food_keyboard(),
-    )
-    await state.set_state(FoodLogStates.waiting_for_confirmation)
+        await state.set_state(FoodLogStates.waiting_for_confirmation)
+    except Exception as e:
+        logger.error("Food result display failed", error=str(e))
+        await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_TEXT)
+        await state.clear()
 
 
 @router.message(FoodLogStates.waiting_for_food_input, F.photo)
