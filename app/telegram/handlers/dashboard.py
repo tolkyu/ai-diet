@@ -166,9 +166,14 @@ async def cmd_dashboard(message: Message, state: FSMContext = None, user_service
     if state:
         await state.clear()
 
-    user, targets, food_log, goal, water_log, is_premium = await _get_dashboard_data(
-        message.from_user.id  # type: ignore[union-attr]
-    )
+    try:
+        user, targets, food_log, goal, water_log, is_premium = await _get_dashboard_data(
+            message.from_user.id  # type: ignore[union-attr]
+        )
+    except Exception as e:
+        logger.error("Dashboard data fetch failed", error=str(e))
+        await message.answer("Помилка при завантаженні дашборду. Спробуй ще раз.")
+        return
     if not user:
         await message.answer(DASHBOARD_NO_PROFILE)
         return

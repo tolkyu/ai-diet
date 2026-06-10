@@ -123,30 +123,30 @@ async def handle_text_food(message: Message, state: FSMContext) -> None:
 
     processing_msg = await message.answer(FOOD_ANALYZING_TEXT)
 
-    async with AsyncSessionLocal() as session:
-        user_repo = UserRepository(session)
-        food_log_svc = FoodLogService(session)
-        user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
-        if not user:
-            await processing_msg.edit_text(FOOD_START_FIRST)
-            return
+    try:
+        async with AsyncSessionLocal() as session:
+            user_repo = UserRepository(session)
+            food_log_svc = FoodLogService(session)
+            user = await user_repo.get_by_telegram_id(message.from_user.id)  # type: ignore[union-attr]
+            if not user:
+                await processing_msg.edit_text(FOOD_START_FIRST)
+                return
 
-        try:
-            await food_log_svc.check_and_increment_quota(user.id, FoodInputType.TEXT)
-        except QuotaExceededError as e:
-            await processing_msg.edit_text(FOOD_QUOTA_EXCEEDED_TEXT)
-            await state.clear()
-            return
+            try:
+                await food_log_svc.check_and_increment_quota(user.id, FoodInputType.TEXT)
+            except QuotaExceededError:
+                await processing_msg.edit_text(FOOD_QUOTA_EXCEEDED_TEXT)
+                await state.clear()
+                return
 
-        try:
             result = await nutrition_analyzer.analyze_text(
                 text, user_id=user.id, session=session
             )
             await session.commit()
-        except Exception as e:
-            logger.error("Food analysis failed", error=str(e))
-            await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_TEXT)
-            return
+    except Exception as e:
+        logger.error("Food analysis failed", error=str(e))
+        await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_TEXT)
+        return
 
     if result.clarification_needed:
         await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: text})
@@ -401,21 +401,29 @@ async def handle_food_confirmation(callback: CallbackQuery, state: FSMContext) -
     from app.services.food_log_service import FoodLogService
     from app.ai.nutrition_analyzer import NutritionAnalyzer
 
-    async with AsyncSessionLocal() as session:
-        user_repo = UserRepository(session)
-        food_log_svc = FoodLogService(session)
-        user = await user_repo.get_by_telegram_id(callback.from_user.id)
-        if not user:
-            return
+    try:
+        async with AsyncSessionLocal() as session:
+            user_repo = UserRepository(session)
+            food_log_svc = FoodLogService(session)
+            user = await user_repo.get_by_telegram_id(callback.from_user.id)
+            if not user:
+                await callback.answer()
+                return
 
-        entries_data = NutritionAnalyzer().format_entries_for_db(result)
-        food_log, entries = await food_log_svc.add_food_entries(
-            user_id=user.id,
-            entries_data=entries_data,
-            raw_input=raw_input if raw_input != "photo" else None,
-            input_type=FoodInputType.PHOTO if raw_input == "photo" else FoodInputType.TEXT,
-        )
-        await session.commit()
+            entries_data = NutritionAnalyzer().format_entries_for_db(result)
+            food_log, entries = await food_log_svc.add_food_entries(
+                user_id=user.id,
+                entries_data=entries_data,
+                raw_input=raw_input if raw_input != "photo" else None,
+                input_type=FoodInputType.PHOTO if raw_input == "photo" else FoodInputType.TEXT,
+            )
+            await session.commit()
+    except Exception as e:
+        logger.error("Food save failed", error=str(e))
+        await callback.message.edit_text("Помилка при збереженні їжі. Спробуй ще раз.")  # type: ignore[union-attr]
+        await callback.answer()
+        await state.clear()
+        return
 
     await callback.message.edit_text(  # type: ignore[union-attr]
         FOOD_SAVED.format(

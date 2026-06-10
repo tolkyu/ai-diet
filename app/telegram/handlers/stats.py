@@ -93,27 +93,36 @@ async def cmd_stats(event: Message | CallbackQuery, state: FSMContext = None) ->
     else:
         await event.answer(STATS_GENERATING)
 
-    async with AsyncSessionLocal() as session:
-        user_repo     = UserRepository(session)
-        analytics_svc = AnalyticsService(session)
-        user_svc      = UserService(session)
+    try:
+        async with AsyncSessionLocal() as session:
+            user_repo     = UserRepository(session)
+            analytics_svc = AnalyticsService(session)
+            user_svc      = UserService(session)
 
-        user = await user_repo.get_by_telegram_id(telegram_id)
-        if not user or not user.is_registered:
-            if isinstance(event, CallbackQuery):
-                await event.message.edit_text(STATS_NO_PROFILE)  # type: ignore[union-attr]
-            else:
-                await event.answer(STATS_NO_PROFILE)
-            return
+            user = await user_repo.get_by_telegram_id(telegram_id)
+            if not user or not user.is_registered:
+                if isinstance(event, CallbackQuery):
+                    await event.message.edit_text(STATS_NO_PROFILE)  # type: ignore[union-attr]
+                else:
+                    await event.answer(STATS_NO_PROFILE)
+                return
 
-        from app.services.subscription_service import SubscriptionService
-        sub_svc = SubscriptionService(session)
-        sub_info = await sub_svc.get_usage_info(user.id, telegram_id=telegram_id)
-        is_premium = sub_info["plan"] == "premium"
+            from app.services.subscription_service import SubscriptionService
+            sub_svc = SubscriptionService(session)
+            sub_info = await sub_svc.get_usage_info(user.id, telegram_id=telegram_id)
+            is_premium = sub_info["plan"] == "premium"
 
-        stats = await analytics_svc.get_weekly_stats(user.id)
-        goal  = await user_svc.get_active_goal(user.id)
-        await session.commit()
+            stats = await analytics_svc.get_weekly_stats(user.id)
+            goal  = await user_svc.get_active_goal(user.id)
+            await session.commit()
+    except Exception as e:
+        logger.error("Stats fetch failed", error=str(e))
+        err_text = "Помилка при завантаженні статистики. Спробуй ще раз."
+        if isinstance(event, CallbackQuery):
+            await event.message.edit_text(err_text)  # type: ignore[union-attr]
+        else:
+            await event.answer(err_text)
+        return
 
     ai_summary = None
     if is_premium and stats["days_logged"] >= 3 and goal:
