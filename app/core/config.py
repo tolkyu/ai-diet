@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     def validate_db_url(cls, v: str) -> str:
         if not v.startswith(("postgresql", "sqlite")):
             raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite connection string")
+        # Railway provides postgresql:// — asyncpg requires postgresql+asyncpg://
+        if v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
     @property
