@@ -4,7 +4,6 @@ Used for Railway deployment (no webhook, no uvicorn needed).
 """
 import asyncio
 import sys
-import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -95,11 +94,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    while True:
-        try:
-            asyncio.run(main())
-        except (KeyboardInterrupt, SystemExit):
-            sys.exit(0)
-        except Exception as e:
-            print(f"[watchdog] Bot crashed: {e}. Restarting in 5s...", flush=True)
-            time.sleep(5)
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        sys.exit(0)
+    except Exception as e:
+        print(f"[crash] Bot crashed: {e}", flush=True)
+        sys.exit(1)

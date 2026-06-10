@@ -149,7 +149,7 @@ async def handle_text_food(message: Message, state: FSMContext) -> None:
         return
 
     try:
-        await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: text})
+        await state.update_data(**{_PENDING_RESULT_KEY: result.model_dump(), _PENDING_TEXT_KEY: text})
         if result.clarification_needed:
             await processing_msg.edit_text(
                 _format_food_summary(result) + FOOD_CLARIFICATION.format(question=result.clarification_question),
@@ -221,7 +221,7 @@ async def handle_photo_food(message: Message, state: FSMContext) -> None:
             await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_PHOTO)
             return
 
-    await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: "photo", "is_premium": is_premium})
+    await state.update_data(**{_PENDING_RESULT_KEY: result.model_dump(), _PENDING_TEXT_KEY: "photo", "is_premium": is_premium})
     await processing_msg.edit_text(
         _format_food_summary(result, is_premium) + FOOD_PHOTO_VERIFY,
         parse_mode="HTML",
@@ -279,7 +279,7 @@ async def handle_photo_correction(message: Message, state: FSMContext) -> None:
         logger.error("Photo correction re-analysis failed", error=str(e))
         refined_result = initial_result
 
-    await state.update_data(**{_PENDING_RESULT_KEY: refined_result})
+    await state.update_data(**{_PENDING_RESULT_KEY: refined_result.model_dump()})
     await processing_msg.edit_text(
         _format_food_summary(refined_result, is_premium) + FOOD_PHOTO_VERIFY,
         parse_mode="HTML",
@@ -330,7 +330,7 @@ async def handle_voice_food(message: Message, state: FSMContext) -> None:
         await processing_msg.edit_text(FOOD_ANALYSIS_ERROR_VOICE)
         return
 
-    await state.update_data(**{_PENDING_RESULT_KEY: result, _PENDING_TEXT_KEY: transcribed})
+    await state.update_data(**{_PENDING_RESULT_KEY: result.model_dump(), _PENDING_TEXT_KEY: transcribed})
 
     if result.clarification_needed:
         await message.answer(
@@ -366,7 +366,7 @@ async def handle_clarification(message: Message, state: FSMContext) -> None:
     except Exception:
         refined_result = initial_result
 
-    await state.update_data(**{_PENDING_RESULT_KEY: refined_result})
+    await state.update_data(**{_PENDING_RESULT_KEY: refined_result.model_dump()})
     await message.answer(
         _format_food_summary(refined_result) + FOOD_SHOULD_SAVE,
         parse_mode="HTML",
